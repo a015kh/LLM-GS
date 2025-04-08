@@ -1,0 +1,30 @@
+name: llm_gs
+dependencies:
+  - python=3.9
+  - numpy<2.0
+  - scipy
+  - Pillow
+  - tqdm
+  - matplotlib
+  - pandas
+  - pip
+  - pip:
+      - torch==1.10.0
+      - torchvision==0.11.1
+      - tensorboardX==1.9
+      - gym==0.15.4
+      - gymnasium==0.29.1
+      - requests
+      - wandb
+      - ply
+      - imageio
+      - h5py
+      - colorlog
+      - progressbar
+      - langchain==0.1.16
+      - langchain-openai==0.1.3
+      - python-dotenv
+      - wrapt-timeout-decorator
+  # Minigrid installation
+  - pip:
+      - git+https://github.com/Farama-Foundation/Minigrid.git

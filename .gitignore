@@ -1,0 +1,10 @@
+__pycache__
+env
+checkpoints
+data/*.pkl
+logs
+wandb
+.env
+*.gif
+*.pdf
+output
