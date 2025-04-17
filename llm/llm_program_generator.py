@@ -9,7 +9,8 @@ import numpy as np
 from llm.prompt_generator import PromptGenerator
 from llm.utils import get_program_str_from_llm_response_dsl, get_program_str_from_llm_response_python
 from prog_policies.utils import get_env_name
-from prog_policies.base import BaseDSL
+from prog_policies.base import BaseDSL, dsl_nodes
+
 
 CHATGPT_KEY = os.getenv("OPENAI_KEY")
 
@@ -22,6 +23,9 @@ class LLMProgramGenerator:
         llm_program_num: int,
         temperature: float = 1.0,
         top_p: float = 1.0,
+        action_shots: int = 0,
+        perception_shots: int = 0,
+        program_shots: int = 0,
     ) -> None:
         self.seed = seed
         self.task = task
@@ -34,6 +38,17 @@ class LLMProgramGenerator:
         self.top_p = top_p
 
         self.np_rng = np.random.RandomState(self.seed)
+
+        # Revision parameters
+        self.action_shots = action_shots
+        self.perception_shots = perception_shots
+        self.program_shots = program_shots
+        self.prompt_generator = PromptGenerator(
+            self.task,
+            self.action_shots,
+            self.perception_shots,
+            self.program_shots,
+        )
 
     def _call_llm(
         self,
@@ -99,7 +114,7 @@ class LLMProgramGenerator:
                 pass
         return program_str_list
 
-    def get_program_list_python_to_dsl(self):
+    def get_program_list_python_to_dsl(self) -> tuple[list, dict]:
         program_list = []
         record_list = []
         attempts = 0
@@ -108,9 +123,8 @@ class LLMProgramGenerator:
             attempts += 1
             seed = self.np_rng.randint(0, 2**32)
             llm_program_num = math.ceil((program_num - len(program_list)) * self.ratio)
-            prompt_generator = PromptGenerator(self.task)
-            system_prompt = prompt_generator.get_system_prompt_python_to_dsl()
-            user_prompt = prompt_generator.get_user_prompt_python_to_dsl()
+            system_prompt = self.prompt_generator.get_system_prompt_python_to_dsl()
+            user_prompt = self.prompt_generator.get_user_prompt_python_to_dsl()
             llm_response = self._call_llm(system_prompt, user_prompt, llm_program_num)
             program_str_list = self._get_program_list_from_llm_response_python_to_dsl(llm_response)
             for candidates in program_str_list:
@@ -148,7 +162,7 @@ class LLMProgramGenerator:
 
         return program_list, log
     
-    def get_program_list_python(self):
+    def get_program_list_python(self) -> tuple[list, dict]:
         program_list = []
         record_list = []
         attempts = 0
@@ -157,9 +171,8 @@ class LLMProgramGenerator:
             attempts += 1
             seed = self.np_rng.randint(0, 2**32)
             llm_program_num = math.ceil((program_num - len(program_list)) * self.ratio)
-            prompt_generator = PromptGenerator(self.task)
-            system_prompt = prompt_generator.get_system_prompt_python()
-            user_prompt = prompt_generator.get_user_prompt_python()
+            system_prompt = self.prompt_generator.get_system_prompt_python()
+            user_prompt = self.prompt_generator.get_user_prompt_python()
             llm_response = self._call_llm(system_prompt, user_prompt, llm_program_num)
             program_str_list = self._get_program_list_from_llm_response_python(llm_response)
             for program_str in program_str_list:
@@ -193,7 +206,7 @@ class LLMProgramGenerator:
 
         return program_list, log
     
-    def get_program_list_dsl(self):
+    def get_program_list_dsl(self) -> tuple[list, dict]:
         program_list = []
         record_list = []
         attempts = 0
@@ -202,9 +215,8 @@ class LLMProgramGenerator:
             attempts += 1
             seed = self.np_rng.randint(0, 2**32)
             llm_program_num = math.ceil((program_num - len(program_list)) * self.ratio)
-            prompt_generator = PromptGenerator(self.task)
-            system_prompt = prompt_generator.get_system_prompt_dsl()
-            user_prompt = prompt_generator.get_user_prompt_dsl()
+            system_prompt = self.prompt_generator.get_system_prompt_dsl()
+            user_prompt = self.prompt_generator.get_user_prompt_dsl()
             llm_response = self._call_llm(system_prompt, user_prompt, llm_program_num)
             program_str_list = self._get_program_list_from_llm_response_dsl(llm_response)
             for program_str in program_str_list:
@@ -238,4 +250,205 @@ class LLMProgramGenerator:
 
         return program_list, log
 
+    def get_program_list_revision_regeneration_with_reward(
+        self,
+        progs_rewards: list[dsl_nodes.Program, float]
+    ):
+        program_list = []
+        record_list = []
+        attempts = 0
+        program_num = self.llm_program_num
+        while len(program_list) < program_num:
+            attempts += 1
+            seed = self.np_rng.randint(0, 2**32)
+            llm_program_num = math.ceil((program_num - len(program_list)) * self.ratio)
+            system_prompt = self.prompt_generator.get_system_prompt_python_to_dsl()
+            user_prompt = self.prompt_generator.get_user_prompt_revision_regeneration_with_reward(progs_rewards, self.dsl)
+            llm_response = self._call_llm(system_prompt, user_prompt, llm_program_num)
+            program_str_list = self._get_program_list_from_llm_response_python_to_dsl(llm_response)
+            for candidates in program_str_list:
+                tmp = []
+                for candidate in candidates:
+                    try:
+                        program = self.dsl.parse_str_to_node(candidate)
+                        tmp.append(program)
+                    except:
+                        pass
+                if len(tmp) > 0:
+                    program_list.append(self.np_rng.choice(tmp))
+            
+            available_program_num = len(program_list)
+            print(f"Attempts: {attempts}, Program_nums: {available_program_num}")
+            
+            if len(program_list) > program_num:
+                program_list = program_list[:program_num]
+            program_str_list = [self.dsl.parse_node_to_str(program) for program in program_list]  
+            
+            record_list.append(
+                {
+                    "seed": seed,
+                    "temperature": self.temperature,
+                    "top_p": self.top_p,
+                    "system_prompt": system_prompt,
+                    "user_prompt": user_prompt,
+                    "llm_response": llm_response,
+                    "available_program_num": available_program_num,
+                    "program_str_list": program_str_list,
+                }
+            )
+
+        log = {"attemps": attempts, "record_list": record_list}
+
+        return program_list, log
+
+    def get_program_list_revision_regeneration(
+        self,
+        previous_program_list: List[dsl_nodes.Program],
+    ):
+        program_list = []
+        record_list = []
+        attempts = 0
+        program_num = self.llm_program_num
+        while len(program_list) < program_num:
+            attempts += 1
+            seed = self.np_rng.randint(0, 2**32)
+            llm_program_num = math.ceil((program_num - len(program_list)) * self.ratio)
+            system_prompt = self.prompt_generator.get_system_prompt_python_to_dsl()
+            user_prompt = self.prompt_generator.get_user_prompt_revision_regeneration(previous_program_list, self.dsl)
+            llm_response = self._call_llm(system_prompt, user_prompt, llm_program_num)
+            program_str_list = self._get_program_list_from_llm_response_python_to_dsl(llm_response)
+            for candidates in program_str_list:
+                tmp = []
+                for candidate in candidates:
+                    try:
+                        program = self.dsl.parse_str_to_node(candidate)
+                        tmp.append(program)
+                    except:
+                        pass
+                if len(tmp) > 0:
+                    program_list.append(self.np_rng.choice(tmp))
+            
+            available_program_num = len(program_list)
+            print(f"Attempts: {attempts}, Program_nums: {available_program_num}")
+            
+            if len(program_list) > program_num:
+                program_list = program_list[:program_num]
+            program_str_list = [self.dsl.parse_node_to_str(program) for program in program_list]  
+            
+            record_list.append(
+                {
+                    "seed": seed,
+                    "temperature": self.temperature,
+                    "top_p": self.top_p,
+                    "system_prompt": system_prompt,
+                    "user_prompt": user_prompt,
+                    "llm_response": llm_response,
+                    "available_program_num": available_program_num,
+                    "program_str_list": program_str_list,
+                }
+            )
+
+        log = {"attemps": attempts, "record_list": record_list}
+
+        return program_list, log
+    
+    def get_program_list_revision_agent_execution_trace(
+        self,
+        reward: float, logs: list[dict[str, str]], average_reward: float,
+    ) -> tuple[list[dsl_nodes.Program], dict]:
+        program_list = []
+        record_list = []
+        attempts = 0
+        program_num = self.llm_program_num
+        while len(program_list) < program_num:
+            attempts += 1
+            seed = self.np_rng.randint(0, 2**32)
+            llm_program_num = math.ceil((program_num - len(program_list)) * self.ratio)
+            system_prompt = self.prompt_generator.get_system_prompt_python_to_dsl()
+            user_prompt = self.prompt_generator.get_user_prompt_revision_agent_execution_trace(reward, logs, average_reward)
+            llm_response = self._call_llm(system_prompt, user_prompt, llm_program_num)
+            program_str_list = self._get_program_list_from_llm_response_python_to_dsl(llm_response)
+            for candidates in program_str_list:
+                tmp = []
+                for candidate in candidates:
+                    try:
+                        program = self.dsl.parse_str_to_node(candidate)
+                        tmp.append(program)
+                    except:
+                        pass
+                if len(tmp) > 0:
+                    program_list.append(self.np_rng.choice(tmp))
+            
+            available_program_num = len(program_list)
+            print(f"Attempts: {attempts}, Program_nums: {available_program_num}")
+            
+            if len(program_list) > program_num:
+                program_list = program_list[:program_num]
+            program_str_list = [self.dsl.parse_node_to_str(program) for program in program_list]  
+            
+            record_list.append(
+                {
+                    "seed": seed,
+                    "temperature": self.temperature,
+                    "top_p": self.top_p,
+                    "system_prompt": system_prompt,
+                    "user_prompt": user_prompt,
+                    "llm_response": llm_response,
+                    "available_program_num": available_program_num,
+                    "program_str_list": program_str_list,
+                }
+            )
+
+        log = {"attemps": attempts, "record_list": record_list}
+
+        return program_list, log
+    
+    def get_program_list_revision_agent_program_execution_trace(
+        self,
+        reward: float, logs: list[dict[str, str]], average_reward: float,
+    ) -> tuple[list[dsl_nodes.Program], dict]:
+        program_list = []
+        record_list = []
+        attempts = 0
+        program_num = self.llm_program_num
+        while len(program_list) < program_num:
+            attempts += 1
+            seed = self.np_rng.randint(0, 2**32)
+            llm_program_num = math.ceil((program_num - len(program_list)) * self.ratio)
+            system_prompt = self.prompt_generator.get_system_prompt_python_to_dsl()
+            user_prompt = self.prompt_generator.get_user_prompt_revision_agent_program_execution_trace(reward, logs, average_reward)
+            llm_response = self._call_llm(system_prompt, user_prompt, llm_program_num)
+            program_str_list = self._get_program_list_from_llm_response_python_to_dsl(llm_response)
+            for candidates in program_str_list:
+                tmp = []
+                for candidate in candidates:
+                    try:
+                        program = self.dsl.parse_str_to_node(candidate)
+                        tmp.append(program)
+                    except:
+                        pass
+                if len(tmp) > 0:
+                    program_list.append(self.np_rng.choice(tmp))
+            
+            available_program_num = len(program_list)
+            print(f"Attempts: {attempts}, Program_nums: {available_program_num}")
+            
+            if len(program_list) > program_num:
+                program_list = program_list[:program_num]
+            program_str_list = [self.dsl.parse_node_to_str(program) for program in program_list]  
+            
+            record_list.append(
+                {
+                    "seed": seed,
+                    "temperature": self.temperature,
+                    "top_p": self.top_p,
+                    "system_prompt": system_prompt,
+                    "user_prompt": user_prompt,
+                    "llm_response": llm_response,
+                    "available_program_num": available_program_num,
+                    "program_str_list": program_str_list,
+                }
+            )
+        log = {"attemps": attempts, "record_list": record_list}
+        return program_list, log
     

@@ -45,9 +45,15 @@ bash scripts/run_main_results.sh
 ```
 
 Or you can run specific algorithm and tasks
-```bash!
+```bash
 # All scripts are in scripts/{baseline}/run_{task}.sh
 bash scripts/LLM-GS/run_DoorKey.sh
+```
+
+You can run revision method of the task DoorKey
+```bash
+# The revision scripts are in scripts/evision/run_{revision_method}.sh
+bash scripts/LLM-Revision/run_regeneration.sh
 ```
 
 Please note that the result of LLM-GS might not be the same as the one we reported in our paper due to the randomness of the LLMs.

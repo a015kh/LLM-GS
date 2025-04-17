@@ -2,6 +2,7 @@ import json
 import time
 import copy
 import os
+from typing import List
 
 
 def inside_seed_save_log_file(
@@ -67,4 +68,50 @@ def outside_seed_save_log_file(
 
     print(
         f"Save the outside seed log file at {output_dir}, program num {num}, best reward {best_reward}"
+    )
+
+def revision_inside_seed_save_log_file(
+    log: dict,
+    output_dir_seed: str,
+    best_reward: float,
+) -> None:
+    new_log = copy.deepcopy(log)
+
+    with open(os.path.join(output_dir_seed, f"log.json"), "w") as f:
+        json.dump(new_log, f, indent=4)
+        
+    print(
+        f"Save the inside seed log file at {output_dir_seed}, best reward {best_reward}"
+    )
+
+
+def revision_outside_seed_save_log_file(
+    output_dir: str,
+    task: str,
+    seed: int,
+    record_program_str_list: List[str],
+    record_reward_list: List[float],
+    best_reward: float,
+) -> None:
+    
+    content = None
+    
+    for _ in range(5):
+        try:
+            with open(os.path.join(output_dir, f"{task}_record.json"), "r") as f:
+                content = json.load(f)
+        except:
+            time.sleep(1)
+            content = {}
+
+    content[task] = content.get(task, {})
+    content[task][str(seed)] = {}
+    content[task][str(seed)]["program"] = record_program_str_list
+    content[task][str(seed)]["reward"] = record_reward_list
+
+    with open(os.path.join(output_dir, f"{task}_record.json"), "w") as f:
+        json.dump(content, f, indent=4)
+
+    print(
+        f"Save the outside seed log file at {output_dir}, best reward {best_reward}"
     )

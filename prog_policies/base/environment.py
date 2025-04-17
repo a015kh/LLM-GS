@@ -79,3 +79,13 @@ class BaseEnvironment(ABC):
     @abstractmethod
     def to_image(self, grid_size: int = 100, root_dir: str = "./") -> np.ndarray:
         pass
+
+    @abstractmethod
+    def to_string_worldcoder_style(self, state: np.ndarray = None) -> str:
+        # The prompt of Grid-based Environment is from the paper "WorldCoder" arXiv:2402.12275
+        pass
+    
+    # For record
+    @abstractmethod    
+    def record_partial_state(self) -> str:
+        pass

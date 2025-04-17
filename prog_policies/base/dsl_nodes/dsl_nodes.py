@@ -3,6 +3,7 @@ from typing import Union
 from ..environment import BaseEnvironment
 from .base_node import BaseNode
 
+
 # Node types, for inheritance to other classes
 # Int: integer functions/constants (int return)
 # Bool: boolean functions/constants (bool return)
@@ -10,28 +11,31 @@ from .base_node import BaseNode
 class IntNode(BaseNode):
 
     def interpret(self, env: BaseEnvironment) -> int:
-        raise Exception('Unimplemented method: interpret')
+        raise Exception("Unimplemented method: interpret")
 
 
 class BoolNode(BaseNode):
 
     def interpret(self, env: BaseEnvironment) -> bool:
-        raise Exception('Unimplemented method: interpret')
+        raise Exception("Unimplemented method: interpret")
 
 
-class StatementNode(BaseNode): pass
+class StatementNode(BaseNode):
+    pass
 
 
 # Terminal/Non-Terminal types, for inheritance to other classes
-class TerminalNode(BaseNode): pass
+class TerminalNode(BaseNode):
+    pass
 
 
-class OperationNode(BaseNode): pass
+class OperationNode(BaseNode):
+    pass
 
 
 # Constants
 class ConstBool(BoolNode, TerminalNode):
-    
+
     def __init__(self, value: bool = False):
         super().__init__()
         self.value = value
@@ -41,14 +45,14 @@ class ConstBool(BoolNode, TerminalNode):
 
 
 class ConstInt(IntNode, TerminalNode):
-    
+
     def __init__(self, value: int = 0):
         super().__init__()
         self.value = value
 
     def interpret(self, env: BaseEnvironment) -> int:
         return self.value
-    
+
     def record_interpret(self, env: BaseEnvironment) -> int:
         return self.value
 
@@ -61,17 +65,17 @@ class Program(BaseNode):
     children_types = [StatementNode]
 
     def run(self, env: BaseEnvironment) -> None:
-        assert self.is_complete(), 'Incomplete Program'
+        assert self.is_complete(), "Incomplete Program"
         self.children[0].run(env)
-    
+
     def run_generator(self, env: BaseEnvironment):
-        assert self.is_complete(), 'Incomplete Program'
+        assert self.is_complete(), "Incomplete Program"
         for node in self.get_all_nodes():
             node.reset_state()
         yield from self.children[0].run_generator(env)
-        
+
     def record_run_generator(self, env: BaseEnvironment):
-        assert self.is_complete(), 'Incomplete Program'
+        assert self.is_complete(), "Incomplete Program"
         for node in self.get_all_nodes():
             node.reset_state()
         yield from self.children[0].record_run_generator(env)
@@ -94,7 +98,8 @@ class While(StatementNode, OperationNode):
                 if env == previous_env:
                     env.crash()
             self.previous_envs.append(copy.deepcopy(env))
-            if env.is_crashed(): return     # To avoid infinite loops
+            if env.is_crashed():
+                return  # To avoid infinite loops
             self.children[1].run(env)
 
     def run_generator(self, env: BaseEnvironment):
@@ -105,19 +110,10 @@ class While(StatementNode, OperationNode):
                 if env_hash == previous_env_hash:
                     env.crash()
             self.previous_env_hashes.append(env_hash)
-            if env.is_crashed(): return     # To avoid infinite loops
+            if env.is_crashed():
+                return  # To avoid infinite loops
             yield from self.children[1].run_generator(env)
-    
-    # def run_generator(self, env: BaseEnvironment):
-    #     while self.children[0].interpret(env):
-    #         # If we have seen this state previously, we're in an infinite loop
-    #         for previous_env in self.previous_envs:
-    #             if env == previous_env:
-    #                 env.crash()
-    #         self.previous_envs.append(copy.deepcopy(env))
-    #         if env.is_crashed(): return     # To avoid infinite loops
-    #         yield from self.children[1].run_generator(env)
-            
+
     def record_run_generator(self, env: BaseEnvironment):
         while self.children[0].record_interpret(env):
             yield self.children[0]
@@ -126,7 +122,8 @@ class While(StatementNode, OperationNode):
                 if env == previous_env:
                     env.crash()
             self.previous_envs.append(copy.deepcopy(env))
-            if env.is_crashed(): return     # To avoid infinite loops
+            if env.is_crashed():
+                return  # To avoid infinite loops
             yield from self.children[1].record_run_generator(env)
 
 
@@ -142,7 +139,7 @@ class Repeat(StatementNode, OperationNode):
     def run_generator(self, env: BaseEnvironment):
         for _ in range(self.children[0].interpret(env)):
             yield from self.children[1].run_generator(env)
-            
+
     def record_run_generator(self, env: BaseEnvironment):
         for _ in range(self.children[0].record_interpret(env)):
             yield from self.children[1].record_run_generator(env)
@@ -160,7 +157,7 @@ class If(StatementNode, OperationNode):
     def run_generator(self, env: BaseEnvironment):
         if self.children[0].interpret(env):
             yield from self.children[1].run_generator(env)
-            
+
     def record_run_generator(self, env: BaseEnvironment):
         yield self.children[0]
         if self.children[0].record_interpret(env):
@@ -183,7 +180,7 @@ class ITE(StatementNode, OperationNode):
             yield from self.children[1].run_generator(env)
         else:
             yield from self.children[2].run_generator(env)
-            
+
     def record_run_generator(self, env: BaseEnvironment):
         yield self.children[0]
         if self.children[0].record_interpret(env):
@@ -204,7 +201,7 @@ class Concatenate(StatementNode, OperationNode):
     def run_generator(self, env: BaseEnvironment):
         yield from self.children[0].run_generator(env)
         yield from self.children[1].run_generator(env)
-        
+
     def record_run_generator(self, env: BaseEnvironment):
         yield from self.children[0].record_run_generator(env)
         yield from self.children[1].record_run_generator(env)
@@ -214,10 +211,10 @@ class Concatenate(StatementNode, OperationNode):
 class Not(BoolNode, OperationNode):
 
     children_types = [BoolNode]
-    
+
     def interpret(self, env: BaseEnvironment) -> bool:
         return not self.children[0].interpret(env)
-    
+
     def record_interpret(self, env: BaseEnvironment) -> bool:
         return not self.children[0].record_interpret(env)
 
@@ -226,7 +223,7 @@ class Not(BoolNode, OperationNode):
 class And(BoolNode, OperationNode):
 
     children_types = [BoolNode, BoolNode]
-    
+
     def interpret(self, env: BaseEnvironment) -> bool:
         return self.children[0].interpret(env) and self.children[1].interpret(env)
 
@@ -234,41 +231,40 @@ class And(BoolNode, OperationNode):
 class Or(BoolNode, OperationNode):
 
     children_types = [BoolNode, BoolNode]
-    
+
     def interpret(self, env: BaseEnvironment) -> bool:
         return self.children[0].interpret(env) or self.children[1].interpret(env)
-    
+
 
 # For actions available in environment
 class Action(StatementNode, TerminalNode):
-    
+
     def run(self, env: BaseEnvironment) -> None:
         if not env.is_crashed():
             env.run_action(self.name)
-        
+
     def run_generator(self, env: BaseEnvironment):
         if not env.is_crashed():
             env.run_action(self.name)
             yield self
-            
+
     def record_run_generator(self, env: BaseEnvironment):
         if not env.is_crashed():
             env.run_action(self.name)
             yield self
 
 
-
 # For features available in environment
 class BoolFeature(BoolNode, TerminalNode):
-    
+
     def interpret(self, env: BaseEnvironment) -> bool:
         return env.get_bool_feature(self.name)
-    
+
     def record_interpret(self, env: BaseEnvironment) -> bool:
         return env.get_bool_feature(self.name)
 
 
 class IntFeature(BoolNode, TerminalNode):
-    
+
     def interpret(self, env: BaseEnvironment) -> int:
         return env.get_int_feature(self.name)

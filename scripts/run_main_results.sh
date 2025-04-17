@@ -1,5 +1,5 @@
 method="LLM-GS"
-task="CleanHouse"
+task="MazeSparse"
 
 # LLM-GS (Karel): CleanHouse, DoorKey, FourCorners, Harvester, MazeSparse, OneStroke, PathFollow, Seeder, Snake, StairClimberSparse, TopOff, WallAvoider
 # LLM-GS (Minigrid): LavaGap, PutNear, RedBlueDoor

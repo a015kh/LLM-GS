@@ -334,3 +334,73 @@ class KarelEnvironment(BaseEnvironment):
             self.state[5 + num_marker, r, c] = False
             self.state[6 + num_marker, r, c] = True
             self.markers_grid[r, c] += 1
+
+
+    # Cannot support non-self state right now
+    def to_string_worldcoder_style(self, state: np.ndarray = None) -> str:
+        if state is None:
+            state = self.state
+        
+        worldStr = ''
+        if self.crashed: worldStr += 'CRASHED\n'
+        hero_r, hero_c, hero_d = self.get_hero_pos()
+        _, rows, cols = self.state_shape
+        for r in range(rows):
+            rowStr = ''
+            for c in range(cols):
+                if self.state[4, r, c] == True:
+                    rowStr += f'Wall({r}, {c}) ;'
+                elif r == hero_r and c == hero_c:
+                    if self.markers_grid[r, c] > 0:
+                        _dir = self.get_hero_char_worldcoder_style(hero_d)
+                        rowStr += f"Agent({r}, {c}, direction=({_dir[0]}, {_dir[1]})) and "
+                        num_marker = self.markers_grid[r, c]
+                        rowStr += f"Marker({r}, {c}, quantity={num_marker}) ;"
+                    else:
+                        _dir = self.get_hero_char_worldcoder_style(hero_d)
+                        rowStr += f"Agent({r}, {c}, direction=({_dir[0]}, {_dir[1]})) ;"
+                elif self.markers_grid[r, c] > 0:
+                    num_marker = self.markers_grid[r, c]
+                    rowStr += f"Marker({r}, {c}, quantity={num_marker}) ;"
+                else:
+                    rowStr += f"Empty({r}, {c}) ;"
+                if c < cols - 1:
+                    rowStr += "\t"
+            worldStr += rowStr
+            if(r != rows-1): worldStr += '\n'
+        return worldStr
+    
+    # Cannot support non-self state right now
+    def record_partial_state(self) -> str:
+        
+        worldStr = ''
+        hero_r, hero_c, hero_d = self.get_hero_pos()
+        _, rows, cols = self.state_shape
+        for r in range(rows):
+            if r not in range(hero_r - 1, hero_r + 2):
+                continue
+            rowStr = ''
+            for c in range(cols):
+                if c not in range(hero_c - 1, hero_c + 2):
+                    continue
+                if self.state[4, r, c] == True:
+                    rowStr += f'Wall({r}, {c}) ;'
+                elif r == hero_r and c == hero_c:
+                    if self.markers_grid[r, c] > 0:
+                        _dir = self.get_hero_char_worldcoder_style(hero_d)
+                        rowStr += f"Agent({r}, {c}, direction=({_dir[0]}, {_dir[1]})) and "
+                        num_marker = self.markers_grid[r, c]
+                        rowStr += f"Marker({r}, {c}, quantity={num_marker}) ;"
+                    else:
+                        _dir = self.get_hero_char_worldcoder_style(hero_d)
+                        rowStr += f"Agent({r}, {c}, direction=({_dir[0]}, {_dir[1]})) ;"
+                elif self.markers_grid[r, c] > 0:
+                    num_marker = self.markers_grid[r, c]
+                    rowStr += f"Marker({r}, {c}, quantity={num_marker}) ;"
+                else:
+                    rowStr += f"Empty({r}, {c}) ;"
+                if c < cols - 1:
+                    rowStr += "\t"
+            worldStr += rowStr
+            if(r != rows-1): worldStr += '\n'
+        return worldStr
